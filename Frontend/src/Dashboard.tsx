@@ -137,12 +137,12 @@ const Dashboard = () => {
                   <span
                     key={r}
                     className={`retailer-badge ${
-                      response.retailersWithResults.includes(r)
+                      response.retailersWithResults?.includes(r)
                         ? 'active'
                         : 'inactive'
                     }`}
                     style={{
-                      borderColor: response.retailersWithResults.includes(r)
+                      borderColor: response.retailersWithResults?.includes(r)
                         ? RETAILER_COLORS[r] || '#555'
                         : '#333',
                     }}
@@ -172,7 +172,7 @@ const Dashboard = () => {
 
                 <div className="analytics-card">
                   <span>Retailers</span>
-                  <strong>{response.retailersWithResults.length}</strong>
+                  <strong>{response.retailersWithResults?.length}</strong>
                 </div>
               </div>
             )}
