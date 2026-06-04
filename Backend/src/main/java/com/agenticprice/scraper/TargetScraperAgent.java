@@ -1,0 +1,80 @@
+package com.agenticprice.scraper;
+
+import com.agenticprice.service.OpenAIService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.select.Elements;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class TargetScraperAgent implements ScraperAgent {
+
+    private final OpenAIService openAIService;
+
+    @Override
+    public String getRetailerName() {
+        return "Target";
+    }
+
+    @Override
+    public List<PriceResult> scrape(String productQuery) {
+        try {
+            String url = "https://www.target.com/s?searchTerm=" + productQuery.replace(" ", "+");
+            Document doc = Jsoup.connect(url)
+                    .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    .header("Accept-Language", "en-US,en;q=0.9")
+                    .timeout(10000)
+                    .get();
+
+            Elements items = doc.select("div[data-test='@web/site-top-of-funnel/ProductCardWrapper']");
+
+            if (items.isEmpty()) {
+                log.debug("ProductCardWrapper selector returned 0 results, trying article fallback");
+                items = doc.select("article");
+            }
+
+            log.info("Target found {} potential product items", items.size());
+
+            List<CompletableFuture<PriceResult>> futures = items.stream()
+                    .limit(5)
+                    .map(item -> CompletableFuture.supplyAsync(() -> {
+                        try {
+                            String html = item.outerHtml();
+                            String price = openAIService.extractPrice(html);
+                            String productUrl = openAIService.extractProductUrl(html);
+                            String title = item.select("a[href*='/p/']").attr("aria-label");
+                            if (title.isBlank()) {
+                                title = item.select("h2").text();
+                            }
+                            if (price.equals("PRICE_NOT_FOUND") || title.isBlank()) {
+                                return null;
+                            }
+                            String fullUrl = productUrl.startsWith("/") ? "https://www.target.com" + productUrl
+                                    : productUrl;
+                            return new PriceResult("Target", title, price, "USD", fullUrl);
+                        } catch (Exception e) {
+                            log.warn("Failed to process Target item: {}", e.getMessage());
+                            return null;
+                        }
+                    }))
+                    .toList();
+
+            return futures.stream()
+                    .map(CompletableFuture::join)
+                    .filter(Objects::nonNull)
+                    .toList();
+
+        } catch (Exception e) {
+            log.error("Target scrape failed for query '{}': {}", productQuery, e.getMessage());
+            return List.of();
+        }
+    }
+}
