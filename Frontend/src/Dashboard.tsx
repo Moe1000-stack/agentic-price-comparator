@@ -85,6 +85,14 @@ const loadSavedProducts = () => {
 const getProductKey = (product: PriceResult) =>
   product.url || `${product.retailerName}-${product.productName}-${product.price}`;
 
+const getConditionBadge = (name: string): { label: string; cls: string } | null => {
+  const lower = name.toLowerCase();
+  if (lower.includes('refurbished') || lower.includes('renewed')) return { label: 'Refurbished', cls: 'badge-refurbished' };
+  if (lower.includes('used') || lower.includes('pre-owned') || lower.includes('preowned')) return { label: 'Used', cls: 'badge-used' };
+  if (lower.includes('open box') || lower.includes('open-box')) return { label: 'Open Box', cls: 'badge-openbox' };
+  return null;
+};
+
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : 'Something went wrong';
 
@@ -413,6 +421,7 @@ const Dashboard = () => {
                                 <td className="rank">{i + 1}</td>
                                 <td className="product-name">
                                   {isBest && <span className="best-badge">Best Deal</span>}
+                                  {(() => { const b = getConditionBadge(result.productName); return b ? <span className={`condition-badge ${b.cls}`}>{b.label}</span> : null; })()}
                                   {result.productName}
                                 </td>
                                 <td>
